@@ -1,0 +1,19 @@
+[package]
+version = "1.0.0"
+category = "Synthetic Data"
+title = "Synthetic Data Generation Extension"
+description = "Generates virtual data"
+authors = ["Chaza Abdel Rahman","Johnny Eskandar","Dia Khalil"]
+keywords = ["isaac","replicator","synthetic data"]
+
+readme = "README.md"
+writeTarget.kit = true
+
+[dependencies]
+"omni.kit.uiapp" = {}
+"omni.ui"={}
+"omni.replicator.core"={}
+
+[[python.module]]
+name = "synthetic_data_extension"
+
