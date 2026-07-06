@@ -1,0 +1,24 @@
+{
+    "assets":[
+        {
+            "label":"Dolly",
+            "path":"assets/Dolly_7/scene.usdc"
+        },
+        {
+            "label":"Forklift",
+            "path":"assets/Forklift_2/scene.usdc"
+        },
+        {
+            "label":"Rack",
+            "path":"assets/Rack_2/scene.usdc"
+        },
+        {
+            "label":"Stillage",
+            "path":"assets/Stillage_6/scene.usdc"
+        },
+        {
+            "label":"Str",
+            "path":"assets/str_1/scene.usdc"
+        }
+    ]
+}

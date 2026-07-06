@@ -11,7 +11,6 @@ class SyntheticDataExtension(omni.ext.IExt):
             width=400,
             height=500
         ) 
-
         self._build_ui()
 
     def _build_ui(self):
@@ -21,7 +20,7 @@ class SyntheticDataExtension(omni.ext.IExt):
                 ui.Label("Synthetic Data Generation")
                 with ui.HStack(spacing=5):
                     ui.Label("Asset config path")
-                    self.asset_config_field=ui.StringField() #Create a textbox and keep a reference to it because we'll need to update it later
+                    self.asset_config_field=ui.StringField(model=self.asset_config_model)
                     ui.Button(
                         "Browse",
                         clicked_fn=self._browse_asset_config
@@ -39,7 +38,33 @@ class SyntheticDataExtension(omni.ext.IExt):
                 with ui.HStack(spacing=5):
                     ui.CheckBox(model=self.randomization_models["transform"])
                     ui.Label("Transform")
-                
+                ui.Label("Output")
+                with ui.HStack(spacing=5):
+                    ui.CheckBox(model=self.output_models["rgb"])
+                    ui.Label("RGB")
+                with ui.HStack(spacing=5):
+                    ui.CheckBox(model=self.output_models["depth"])
+                    ui.Label("Depth")
+                with ui.HStack(spacing=5):
+                    ui.CheckBox(model=self.output_models["semantic"])
+                    ui.Label("Semantic")
+                with ui.HStack(spacing=5):
+                    ui.CheckBox(model=self.output_models["instance"])
+                    ui.Label("Instance")
+                with ui.HStack(spacing=5):
+                    ui.CheckBox(model=self.output_models["bbox_2d"])
+                    ui.Label("bbox_2d")
+                ui.Label("Output Directory")
+                with ui.HStack(spacing=5):
+                    self.output_dir_field=ui.StringField(model=self.output_dir_model)
+                    ui.Button(
+                        "Browse",
+                        clicked_fn=self._browse_output_dir
+                    )
+                ui.Button(
+                    "Generate and Render",
+                    clicked_fn=self._generate_and_render
+                )
     def _browse_asset_config(self):
         # to implement
         print("Browse asset config clicked")
@@ -70,7 +95,21 @@ class SyntheticDataExtension(omni.ext.IExt):
             "instance":True,
             "bbox_2d":True
         }
-
+        self.num_frames_model=ui.SimpleIntModel(self.num_frames)
+        self.randomization_models={
+            "light":ui.SimpleBoolModel(self.randomization["light"]),
+            "material":ui.SimpleBoolModel(self.randomization["material"]),
+            "transform":ui.SimpleBoolModel(self.randomization["transform"]),
+        }
+        self.output_models={
+            "rgb":ui.SimpleBoolModel(self.outputs["rgb"]),
+            "depth":ui.SimpleBoolModel(self.outputs["depth"]),
+            "semantic":ui.SimpleBoolModel(self.outputs["semantic"]),
+            "instance":ui.SimpleBoolModel(self.outputs["instance"]),
+            "bbox_2d":ui.SimpleBoolModel(self.outputs["bbox_2d"]),
+        }
+        self.output_dir_model=ui.SimpleStringModel(self.output_dir)
+        self.asset_config_model=ui.SimpleStringModel(self.asset_config_path)
     def on_shutdown(self):
         self._window=None
      
