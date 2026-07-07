@@ -3,7 +3,8 @@ import omni.ui as ui
 from .asset_manager import AssetManager
 from pathlib import Path
 from omni.kit.window.filepicker import FilePickerDialog
-# from .replicator_engine import ReplicatorEngine
+from .replicator_engine import generate
+from .custom_writer import CustomWriter
 
 # define the extension
 class SyntheticDataExtension(omni.ext.IExt):
@@ -34,33 +35,33 @@ class SyntheticDataExtension(omni.ext.IExt):
                 ui.Label("Number of frames")
                 ui.IntField(model=self.num_frames_model)
                 ui.Label("Randomization")
-                with ui.HStack(spacing=5):
+                with ui.HStack(spacing=1):
                     ui.CheckBox(model=self.randomization_models["light"])
                     ui.Label("Light")               
-                with ui.HStack(spacing=5):
+                with ui.HStack(spacing=1):
                     ui.CheckBox(model=self.randomization_models["material"])
                     ui.Label("Material")               
-                with ui.HStack(spacing=5):
+                with ui.HStack(spacing=1):
                     ui.CheckBox(model=self.randomization_models["transform"])
                     ui.Label("Transform")
                 ui.Label("Output")
-                with ui.HStack(spacing=5):
+                with ui.HStack(spacing=1):
                     ui.CheckBox(model=self.output_models["rgb"])
                     ui.Label("RGB")
-                with ui.HStack(spacing=5):
+                with ui.HStack(spacing=1):
                     ui.CheckBox(model=self.output_models["depth"])
                     ui.Label("Depth")
-                with ui.HStack(spacing=5):
+                with ui.HStack(spacing=1):
                     ui.CheckBox(model=self.output_models["semantic"])
                     ui.Label("Semantic")
-                with ui.HStack(spacing=5):
+                with ui.HStack(spacing=1):
                     ui.CheckBox(model=self.output_models["instance"])
                     ui.Label("Instance")
-                with ui.HStack(spacing=5):
+                with ui.HStack(spacing=1):
                     ui.CheckBox(model=self.output_models["bbox_2d"])
-                    ui.Label("BBox_2d")
+                    ui.Label("BBox_2D")
                 ui.Label("Output Directory")
-                with ui.HStack(spacing=5):
+                with ui.HStack(spacing=1):
                     self.output_dir_field=ui.StringField(model=self.output_dir_model)
                     ui.Button(
                         "Browse",
@@ -160,21 +161,34 @@ class SyntheticDataExtension(omni.ext.IExt):
             return
         print("Loaded assets:")
         print(assets)  
-      
-        # engine=ReplicatorEngine(
-        #     assets=assets,
-        #     settings=settings
-        # )
         
         settings["instance_counts"]={
             label:model.get_value_as_int()
             for label, model in self.instance_count_models.items()
         }
         print(settings)
-        #  Import ReplicatorEngine when Part 3 is done
-        # Create ReplicatorEngine with assets + settings
-        #  Attach CustomWriter when Part 4 is done
-        #Call engine.run()
+        writer=CustomWriter(
+            rgb=settings["outputs"]["rgb"],
+            depth=settings["outputs"]["depth"],
+            semantic=settings["outputs"]["semantic"],
+            instance=settings["outputs"]["instance"],
+            bbox_2d=settings["outputs"]["bbox_2d"],
+            output_dir=settings["output_dir"],
+        )
+        config={
+            "resolution":(1024,1024),
+            "class_labels":assets,
+            "instance_counts":settings["instance_counts"],
+            "num_frames":settings["num_frames"],
+            "writer":writer,
+            "toggles":settings["randomization"]
+        }
+        try:
+            generate(config)
+        except Exception as error:
+            print("Error while running replicator: ",error)
+            return
+ 
     def _rebuild_instance_count_ui(self, assets):
         self.instance_count_models={}
         with self.instance_count_stack:
@@ -221,9 +235,3 @@ class SyntheticDataExtension(omni.ext.IExt):
         self.instance_count_models={}
     def on_shutdown(self):
         self._window=None
-     
-
-
-# Asset config path (with a file browser)
-# Per-class instance count
-# A Generate & Render button

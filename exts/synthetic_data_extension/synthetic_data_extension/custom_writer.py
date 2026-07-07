@@ -85,7 +85,7 @@ class CustomWriter(Writer):
                     "bounding_box_2d_tight",
                     init_params={
                         "semanticTypes": ["class"],
-                        "colorize": False,
+                        #"colorize": False,
                     },
                 )
             )    
