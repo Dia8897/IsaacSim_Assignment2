@@ -162,10 +162,13 @@ class SyntheticDataExtension(omni.ext.IExt):
         print("Loaded assets:")
         print(assets)  
         
-        settings["instance_counts"]={
-            label:model.get_value_as_int()
-            for label, model in self.instance_count_models.items()
-        }
+        settings["instance_counts"] = {}
+        for asset in assets:
+            label = asset["label"]
+            model = self.instance_count_models.get(label)
+            settings["instance_counts"][label] = (
+                model.get_value_as_int() if model is not None else 1
+            )
         print(settings)
         writer=CustomWriter(
             rgb=settings["outputs"]["rgb"],
