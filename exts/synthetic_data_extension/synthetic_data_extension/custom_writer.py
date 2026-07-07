@@ -259,7 +259,7 @@ class CustomWriter(Writer):
 
     def _write_point_cloud(self,rgb_entry:Any, depth_entry:Any, semantic_entry:Any,frame:str,prefix:str):
         out_folder=self.output_dir/prefix/"point_cloud"
-        out_folder.mkdir(partents=True, exist_ok=True)
+        out_folder.mkdir(parents=True, exist_ok=True)
         path=out_folder/f"{frame}.ply"
 
         rgb_arr,_=self._split_data_info(rgb_entry)

@@ -28,5 +28,4 @@ def instantiate_assets(class_labels, instance_counts):
             add_labels(handle, labels=[class_label])
             result[class_label].append(handle)
 
-    return result
-
+    return result   
