@@ -13,7 +13,12 @@ def build_ground_and_lighting():
     ground = rep.create.plane(scale=(30, 30, 1), position=(0, 0, 0))
     
     # Create a directional light
-    light = rep.create.light(rotation=(315,0,0), intensity=3000, light_type="distant")
+    light = rep.create.light(rotation=(315,0,0), intensity=8000, light_type="distant")
+    light2 = rep.create.light(
+    position=(0, -5, 10),
+    intensity=5000,
+    light_type="sphere"
+)
 
     return ground, light
 

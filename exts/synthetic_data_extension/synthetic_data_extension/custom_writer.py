@@ -389,14 +389,19 @@ class CustomWriter(Writer):
             return str(id_value)
 
     def _fallback_color(self, id_value: Any) -> np.ndarray:
-        try:
-            seed = int(id_value)
-        except Exception:
-            digest = hashlib.sha256(str(id_value).encode("utf-8")).digest()
-            seed = int.from_bytes(digest[:4], "little")
+        colors = {
+            "1": np.array([255, 0, 0], dtype=np.uint8),      # red
+            "2": np.array([0, 255, 0], dtype=np.uint8),      # green
+            "3": np.array([0, 0, 255], dtype=np.uint8),      # blue
+            "4": np.array([255, 255, 0], dtype=np.uint8),    # yellow
+            "5": np.array([255, 0, 255], dtype=np.uint8),    # magenta
+            "6": np.array([0, 255, 255], dtype=np.uint8),    # cyan
+            "7": np.array([255, 128, 0], dtype=np.uint8),    # orange
+            "8": np.array([128, 0, 255], dtype=np.uint8),    # purple
+        }
 
-        rng = np.random.default_rng(seed)
-        return rng.integers(64, 256, size=3, dtype=np.uint8)
+        key = self._normalize_id_key(id_value)
+        return colors.get(key, np.array([255, 255, 255], dtype=np.uint8))
 
     def _write_depth(self, entry: Any, frame: str, prefix: str):
             depth_arr, _ = self._split_data_info(entry)
