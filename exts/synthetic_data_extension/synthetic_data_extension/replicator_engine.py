@@ -1,9 +1,9 @@
 import random
-from isaacsim.core.utils.semantics import add_labels
+#from isaacsim.core.utils.semantics import add_labels
 import omni.replicator.core as rep
 
 def create_camera_and_render_product(resolution):
-    camera = rep.create.camera(position=(0, 0, 1.5), look_at=(0, 0, 0))
+    camera = rep.create.camera(position=(0, -10, 5), look_at=(0, 0, 0))
     render_product = rep.create.render_product(camera, resolution)
 
     return camera, render_product
@@ -27,27 +27,32 @@ def instantiate_assets(class_labels, instance_counts):
 
         for i in range(count):
             handle = rep.create.from_usd(path)
-            add_labels(handle, labels=[class_label])
-            result[class_label].append(handle)
+            with handle:
+                rep.modify.semantics([("class",class_label)])
+            result[class_label].append(handle)    
 
     return result
 
 def _randomize_transform(list_of_prims):
     #need to verify if it should take a list of prims or needs the group wrapper
-    rep.modify.pose(list_of_prims,
-        position = rep.distribution.uniform((-8, -8, 0.1), (8, 8, 0.1)),
-        rotation = rep.distribution.uniform((0, 0, 0), (360, 360, 360)),
-        scale = rep.distribution.uniform((0.75, 0.75, 0.75), (1.25, 1.25, 1.25)),
+    for prim in list_of_prims:
+        with prim:
+            rep.modify.pose(  
+               position = rep.distribution.uniform((-8, -8, 0.1), (8, 8, 0.1)),
+               rotation = rep.distribution.uniform((0, 0, 0), (360, 360, 360)),
+               scale = rep.distribution.uniform((0.75, 0.75, 0.75), (1.25, 1.25, 1.25)),
     )
 
 def _randomize_light(light):
-    rep.modify.pose(light,
-        rotation=rep.distribution.uniform((0, 0, 0), (360, 360, 360)),
-    )
-    #used modify.attribute to change intensity instead of .pose
-    rep.modify.attribute(light,
-        intensity=rep.distribution.uniform(1000, 5000),
-    )
+    with light:
+        rep.modify.pose(
+            rotation=rep.distribution.uniform((300, 0, 0), (360, 0, 360)),
+        )
+
+        rep.modify.attribute(
+            "intensity",
+            rep.distribution.uniform(1000, 5000),
+        )
 
     
 def create_material_pool(count):
@@ -57,9 +62,9 @@ def create_material_pool(count):
 
     for i in range(count):
         color = (random.uniform(0, 1), random.uniform(0, 1), random.uniform(0, 1))
-        material = rep.create.material(
-            mdl="OmniPBR.mdl",
-            diffuse_color_constant=color,
+        material = rep.create.material_omnipbr(
+            diffuse=color,
+            
         )
         materials.append(material)
 
@@ -67,9 +72,8 @@ def create_material_pool(count):
 
 def _randomize_material(list_of_prims, material_pool):
     for prim in list_of_prims:
-        chosen_material = random.choice(material_pool)
-        rep.modify.material(prim, chosen_material)
-
+        with prim:
+            rep.randomizer.materials(material_pool)
 
 
 def run(num_frames:int, render_product, writer, toggles:dict):
