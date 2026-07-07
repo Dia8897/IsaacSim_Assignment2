@@ -95,6 +95,7 @@ class CustomWriter(Writer):
         self._write_metadata()
 
     def write(self, data: dict[str, Any]):
+        print("CUSTOM WRITER WRITE CALLED")
         frame = f"{self._frame_id:06d}"
 
         print(f"[{frame}] write() top-level keys: {list(data.keys())}")

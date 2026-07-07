@@ -3,45 +3,80 @@ import random
 import omni.replicator.core as rep
 
 def create_camera_and_render_product(resolution):
-    camera = rep.create.camera(position=(0, -10, 5), look_at=(0, 0, 0))
+    camera = rep.create.camera(position=(0, -18, 10), look_at=(0, 3, 0))
     render_product = rep.create.render_product(camera, resolution)
 
     return camera, render_product
 
 def build_ground_and_lighting():
     # Create a ground plane
-    ground = rep.create.plane(scale=(10, 10, 1), position=(0, 0, 0))
+    ground = rep.create.plane(scale=(30, 30, 1), position=(0, 0, 0))
     
     # Create a directional light
     light = rep.create.light(rotation=(315,0,0), intensity=3000, light_type="distant")
 
     return ground, light
 
+
+
 def instantiate_assets(class_labels, instance_counts):
     result = {}
+
+    manual_positions = {
+        "Dolly": (-6, 0, 0),
+        "Forklift": (0, 0, 0),
+        "Rack": (6, 0, 0),
+        "Stillage": (-6, 6, 0),
+        "Str": (0, 6, 0),
+    }
+
+    print("instantiate_assets called")
+    print("class_labels:", class_labels)
+    print("instance_counts:", instance_counts)
+
     for asset in class_labels:
         class_label = asset["label"]
         path = asset["path"]
-        count = instance_counts[class_label]
+        count = instance_counts.get(class_label, 0)
+
+        print(f"Creating {count} instance(s) of {class_label} from {path}")
+
         result[class_label] = []
 
+        base_x, base_y, base_z = manual_positions.get(class_label, (0, 0, 0))
+
         for i in range(count):
+            position = (base_x + i * 3, base_y, base_z)
+
+            print(f"Creating {class_label} at {position}")
+
             handle = rep.create.from_usd(path)
+
             with handle:
-                rep.modify.semantics([("class",class_label)])
-            result[class_label].append(handle)    
+                rep.modify.pose(
+                    position=position,
+                    rotation=(0, 0, 0),
+                    scale=(1, 1, 1),
+                )
+                rep.modify.semantics([("class", class_label)])
+
+            result[class_label].append(handle)
 
     return result
 
 def _randomize_transform(list_of_prims):
-    #need to verify if it should take a list of prims or needs the group wrapper
     for prim in list_of_prims:
         with prim:
-            rep.modify.pose(  
-               position = rep.distribution.uniform((-8, -8, 0.1), (8, 8, 0.1)),
-               rotation = rep.distribution.uniform((0, 0, 0), (0, 0, 360)),
-               scale = rep.distribution.uniform((0.75, 0.75, 0.75), (1.25, 1.25, 1.25)),
-        )
+            rep.modify.pose(
+                rotation=rep.distribution.uniform(
+                    (0, 0, 0),
+                    (0, 0, 360)
+                ),
+                scale=rep.distribution.uniform(
+                    (0.85, 0.85, 0.85),
+                    (1.25, 1.25, 1.25)
+                ),
+            )
 
 def _randomize_light(light):
     with light:
@@ -73,31 +108,16 @@ def _randomize_material(list_of_prims, material_pool):
 
 
 
-"""def run(num_frames:int, render_product, writer, toggles:dict):
-    # num_frames: how many frames to generate
-    # render_product: camera output
-    # writer: saves data
-    
-    if writer is not None:
-        writer.attach([render_product])
-    # decide what should happen for each frame
-    with rep.trigger.on_frame(num_frames=num_frames):
-        if toggles.get("transform",False):
-            rep.randomizer.randomize_transform()
-        if toggles.get("light",False):
-            rep.randomizer.randomize_light()
-        if toggles.get("material",False):
-            rep.randomizer.randomize_material()
-    # execute everything just defined
-    rep.orchestrator.run()
-    if writer is not None:
-        writer.detach()"""
-def run(num_frames: int, render_product, writer, toggles: dict):
+async def run(num_frames: int, render_product, writer, toggles: dict):
     if writer is not None:
         print("Attaching writer to render product...")
         writer.attach([render_product])
 
-    with rep.trigger.on_frame(num_frames=num_frames):
+    print("Starting manual Replicator stepping...")
+
+    for frame in range(num_frames):
+        print(f"Rendering frame {frame + 1}/{num_frames}")
+
         if toggles.get("transform", False):
             rep.randomizer.randomize_transform()
 
@@ -107,21 +127,19 @@ def run(num_frames: int, render_product, writer, toggles: dict):
         if toggles.get("material", False):
             rep.randomizer.randomize_material()
 
-    print("Starting Replicator orchestrator...")
-    rep.orchestrator.run()
-
-    try:
-        rep.orchestrator.wait_until_complete()
-    except Exception as e:
-        print("wait_until_complete not available or failed:", e)
+        await rep.orchestrator.step_async()
 
     print("Replicator finished.")
 
     if writer is not None:
+        try:
+            writer.backend.wait_until_done()
+        except Exception as e:
+            print("backend wait_until_done failed:", e)
         writer.detach()
         print("Writer detached.")
 
-def generate(config):
+async def generate(config):
     with rep.new_layer():
         camera, render_product = create_camera_and_render_product(config["resolution"])
         ground, light = build_ground_and_lighting()
@@ -146,5 +164,5 @@ def generate(config):
         rep.randomizer.register(randomize_light)
         rep.randomizer.register(randomize_material)
 
-        run(config["num_frames"], render_product, config["writer"], config["toggles"])
+        await run(config["num_frames"], render_product, config["writer"], config["toggles"])
         

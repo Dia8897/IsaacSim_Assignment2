@@ -2,6 +2,7 @@ import omni.ext
 import omni.ui as ui
 from .asset_manager import AssetManager
 from pathlib import Path
+import asyncio
 from omni.kit.window.filepicker import FilePickerDialog
 from .replicator_engine import generate
 from .custom_writer import CustomWriter
@@ -120,57 +121,67 @@ class SyntheticDataExtension(omni.ext.IExt):
         
     def _generate_and_render(self):
         print("generate and render clicked")
-        settings={
-            "asset_config_path":self.asset_config_model.get_value_as_string(),
-            "output_dir":self.output_dir_model.get_value_as_string(),
-            "num_frames":self.num_frames_model.get_value_as_int(),
-            "randomization":{
-                "light":self.randomization_models["light"].get_value_as_bool(),
-                "material":self.randomization_models["material"].get_value_as_bool(),
-                "transform":self.randomization_models["transform"].get_value_as_bool(),
+
+        settings = {
+            "asset_config_path": self.asset_config_model.get_value_as_string(),
+            "output_dir": self.output_dir_model.get_value_as_string(),
+            "num_frames": self.num_frames_model.get_value_as_int(),
+            "randomization": {
+                "light": self.randomization_models["light"].get_value_as_bool(),
+                "material": self.randomization_models["material"].get_value_as_bool(),
+                "transform": self.randomization_models["transform"].get_value_as_bool(),
             },
-            "outputs":{
-                "rgb":self.output_models["rgb"].get_value_as_bool(),
-                "depth":self.output_models["depth"].get_value_as_bool(),
-                "semantic":self.output_models["semantic"].get_value_as_bool(),
-                "instance":self.output_models["instance"].get_value_as_bool(),
-                "bbox_2d":self.output_models["bbox_2d"].get_value_as_bool(),
+            "outputs": {
+                "rgb": self.output_models["rgb"].get_value_as_bool(),
+                "depth": self.output_models["depth"].get_value_as_bool(),
+                "semantic": self.output_models["semantic"].get_value_as_bool(),
+                "instance": self.output_models["instance"].get_value_as_bool(),
+                "bbox_2d": self.output_models["bbox_2d"].get_value_as_bool(),
             }
         }
+
         if not settings["asset_config_path"]:
             print("Error: Asset config path is empty")
             return
+
         if not settings["output_dir"].strip():
             print("Error: output directory is empty")
             return
-        if settings["num_frames"]<=0:
-            print("Error: number of frames must be greater than 0")
-            return
+
+        if settings["num_frames"] <= 0:
+           print("Error: number of frames must be greater than 0")
+           return
+
         if not any(settings["outputs"].values()):
             print("Error: At least one output modality must be selected")
             return
+
         try:
-            project_root=Path(__file__).resolve().parents[3]
-            assets=AssetManager().load_assets(
+            project_root = Path(__file__).resolve().parents[3]
+            assets = AssetManager().load_assets(
                 settings["asset_config_path"],
                 project_root
             )
-            
         except Exception as error:
-            print("Error while loading assets ", error)
+            print("Error while loading assets:", error)
             return
+
         print("Loaded assets:")
-        print(assets)  
-        
+        print(assets)
+
         settings["instance_counts"] = {}
+
         for asset in assets:
             label = asset["label"]
             model = self.instance_count_models.get(label)
             settings["instance_counts"][label] = (
                 model.get_value_as_int() if model is not None else 1
             )
+
         print(settings)
-        writer=CustomWriter(
+
+    
+        writer = CustomWriter(
             rgb=settings["outputs"]["rgb"],
             depth=settings["outputs"]["depth"],
             semantic=settings["outputs"]["semantic"],
@@ -178,20 +189,23 @@ class SyntheticDataExtension(omni.ext.IExt):
             bbox_2d=settings["outputs"]["bbox_2d"],
             output_dir=settings["output_dir"],
         )
-        config={
-            "resolution":(1024,1024),
-            "class_labels":assets,
-            "instance_counts":settings["instance_counts"],
-            "num_frames":settings["num_frames"],
-            "writer":writer,
-            "toggles":settings["randomization"]
+
+        config = {
+            "resolution": (1024, 1024),
+            "class_labels": assets,
+            "instance_counts": settings["instance_counts"],
+            "num_frames": settings["num_frames"],
+            "writer": writer,
+            "toggles": settings["randomization"]
         }
+
+        asyncio.ensure_future(self._run_generate_async(config))
+    async def _run_generate_async(self, config):
         try:
-            generate(config)
+            await generate(config)
         except Exception as error:
-            print("Error while running replicator: ",error)
-            return
- 
+            print("Error while running replicator: ", error)
+        
     def _rebuild_instance_count_ui(self, assets):
         self.instance_count_models={}
         with self.instance_count_stack:
