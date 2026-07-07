@@ -188,11 +188,7 @@ class SyntheticDataExtension(omni.ext.IExt):
         except Exception as error:
             print("Error while running replicator: ",error)
             return
-        
-        #  Import ReplicatorEngine when Part 3 is done
-        # Create ReplicatorEngine with assets + settings
-        #  Attach CustomWriter when Part 4 is done
-        #Call engine.run()
+ 
     def _rebuild_instance_count_ui(self, assets):
         self.instance_count_models={}
         with self.instance_count_stack:
@@ -239,9 +235,3 @@ class SyntheticDataExtension(omni.ext.IExt):
         self.instance_count_models={}
     def on_shutdown(self):
         self._window=None
-     
-
-
-# Asset config path (with a file browser)
-# Per-class instance count
-# A Generate & Render button
