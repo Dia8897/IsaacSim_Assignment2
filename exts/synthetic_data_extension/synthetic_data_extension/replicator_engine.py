@@ -118,3 +118,4 @@ def generate(config):
         rep.randomizer.register(randomize_material)
 
         run(config["num_frames"], render_product, config["writer"], config["toggles"])
+        
