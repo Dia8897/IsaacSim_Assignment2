@@ -19,7 +19,9 @@ class CustomWriter(Writer):
         bbox_2d: bool = True,
         output_dir: str | None = None,
         backend: BaseBackend | None = None,
+        point_cloud:bool = False,
         **kwargs,
+   
     ):
         self.version ="0.0.1"
         self.data_structure = "renderProduct"
@@ -49,7 +51,8 @@ class CustomWriter(Writer):
         self.enable_depth = depth
         self.enable_semantic = semantic 
         self.enable_instance = instance 
-        self.enable_bbox_2d = bbox_2d            
+        self.enable_bbox_2d = bbox_2d  
+        self.enable_point_cloud = point_cloud          
 
         self.annotators = []  
         if rgb:
@@ -156,6 +159,19 @@ class CustomWriter(Writer):
                 frame,
                 prefix,
             )
+        if (self.enable_point_cloud and 
+            "rgb" in annotators_data and 
+            "distance_to_image_plane" in annotators_data and
+              "semantic_segmentation" in annotators_data
+              ):
+            self._write_point_cloud(
+                rgb_entry=annotators_data["rgb"],
+                depth_entry=annotators_data["distance_to_image_plane"],
+                semantic_entry=annotators_data["semantic_segmentation"],
+                frame=frame,
+                prefix=prefix,
+            )
+
 
 
     def _write_rgb(self, entry: Any, frame:str, prefix:str):
@@ -240,6 +256,48 @@ class CustomWriter(Writer):
                 "info": self._json_safe(info),
             },
         )    
+
+    def _write_point_cloud(self,rgb_entry:Any, depth_entry:Any, semantic_entry:Any,frame:str,prefix:str):
+        out_folder=self.output_dir/prefix/"point_cloud"
+        out_folder.mkdir(partents=True, exist_ok=True)
+        path=out_folder/f"{frame}.ply"
+
+        rgb_arr,_=self._split_data_info(rgb_entry)
+        depth_arr,_=self._split_data_info(depth_entry)
+        semantic_mask,_=self._split_data_info(semantic_mask)
+        rgb_arr=np.asarray(rgb_arr)
+        depth_arr=np.asarray(depth_arr)
+        semantic_mask=np.asarray(semantic_mask)
+        if rgb_arr.ndim==3 and rgb_arr.shape[-1]>=3:
+            rgb_arr=rgb_arr[:,:,:3]
+            # all rows , all columns, keep only the first 3 channels (r,g,b)
+
+        # 4. Get camera intrinsics: fx, fy, cx, cy
+        # 5. Back-project pixels to XYZ points in camera frame
+        # 6. Attach RGB + semantic label to each point
+        # 7. Save as point_cloud/<frame>.ply
+        # self._write_ply(path, points)
+        pass
+    def _write_ply(self, path:Path, points:list[dict]):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("w",encoding="utf-8") as f:
+            f.write("ply\n")
+            f.write("format ascii 1.0\n")
+            f.write(f"element vertex {len(points)}\n")
+            f.write("property float x\n")
+            f.write("propert float y\n")
+            f.write("property float z\n")
+            f.write("property uchar red\n")
+            f.write("property uchar green\n")
+            f.write("property uchar blue\n")
+            f.write("property semantic_id\n")
+            f.write("end header\n")
+            for p in points:
+                f.write(
+                    f"{p['x']},{p['y']},{p['z']}"
+                    f"{p['r']},{p['g']},{p['b']}"
+                    f"{p['semantic_id']}\n"
+                )
 
     def _split_data_info(self, entry: Any) -> tuple[Any, dict]:
         
@@ -334,6 +392,7 @@ class CustomWriter(Writer):
                 "semantic": self.enable_semantic,
                 "instance": self.enable_instance,
                 "bbox_2d": self.enable_bbox_2d,
+                "point_cloud":self.enable_point_cloud
             },
             "files": {
                 "rgb": "rgb/<frame>.png",
@@ -341,6 +400,7 @@ class CustomWriter(Writer):
                 "semantic": "semantic/<frame>.npy + semantic/<frame>_semantic_labels.json",
                 "instance": "instance/<frame>.npy + instance/<frame>_instance_info.json",
                 "bbox_2d": "bbox_2d/<frame>.json",
+                "point_cloud": "point_cloud/<frame>.ply",
             },
         }
 
