@@ -1,5 +1,6 @@
 import json
 import re
+import hashlib
 from pathlib import Path
 from typing import Any
 
@@ -252,23 +253,149 @@ class CustomWriter(Writer):
 
         # raw mask_arr holds label/instance ids, not viewable as-is, so also
         # save a colorized png purely for visual inspection
-        colorized = self._colorize_mask(mask_arr)
+        colorized = self._colorize_mask(mask_arr, info)
         vis_path = f"{prefix}{folder}/{frame}_colorized.png"
         print(f"[{frame}] Writing {vis_path}")
         self.backend.schedule(F.write_image, path=vis_path, data=colorized)
 
-    def _colorize_mask(self, mask_arr: np.ndarray) -> np.ndarray:
-        """Maps each label/instance id to a deterministic RGB color, id 0 (background) stays black."""
-        ids = mask_arr.reshape(mask_arr.shape[:2]) if mask_arr.ndim == 3 else mask_arr
+    def _colorize_mask(self, mask_arr: np.ndarray, info: dict | None = None) -> np.ndarray:
+        """Build a viewable RGB preview for segmentation masks.
+
+        Replicator may return either raw id masks or already-colorized masks
+        depending on annotator settings/version. Raw id masks should be colored
+        from the annotator metadata when that metadata contains an id/color map.
+        """
+        info = info or {}
+
+        if mask_arr.ndim == 3 and mask_arr.shape[-1] >= 3:
+            return self._normalize_rgb_image(mask_arr[:, :, :3])
+
+        ids = mask_arr[:, :, 0] if mask_arr.ndim == 3 and mask_arr.shape[-1] == 1 else mask_arr
         colorized = np.zeros((*ids.shape, 3), dtype=np.uint8)
+        id_to_color = self._extract_id_to_color(info)
 
         for id_value in np.unique(ids):
             if id_value == 0:
                 continue
-            rng = np.random.default_rng(int(id_value))
-            colorized[ids == id_value] = rng.integers(64, 256, size=3, dtype=np.uint8)
+            id_key = self._normalize_id_key(id_value)
+            color = id_to_color.get(id_key)
+            if color is None:
+                color = self._fallback_color(id_value)
+            colorized[ids == id_value] = color
 
         return colorized
+
+    def _normalize_rgb_image(self, image: np.ndarray) -> np.ndarray:
+        image = np.asarray(image)
+
+        if image.dtype == np.uint8:
+            return image
+
+        if np.issubdtype(image.dtype, np.floating):
+            max_value = float(np.nanmax(image)) if image.size else 0.0
+            if max_value <= 1.0:
+                return np.clip(image * 255.0, 0, 255).astype(np.uint8)
+
+        return np.clip(image, 0, 255).astype(np.uint8)
+
+    def _extract_id_to_color(self, info: dict) -> dict[str, np.ndarray]:
+        id_to_color = {}
+
+        for key in ("idToColors", "idToColor", "idToRGBA", "idToRgb", "idToRGB"):
+            value = info.get(key)
+            if isinstance(value, dict):
+                id_to_color.update(self._parse_id_color_dict(value))
+
+        color_to_labels = info.get("colorToLabels")
+        if isinstance(color_to_labels, dict):
+            id_to_labels = info.get("idToLabels", {})
+            label_to_id = self._label_to_id_map(id_to_labels)
+
+            for color_key, label_entry in color_to_labels.items():
+                color = self._parse_color_value(color_key)
+                if color is None:
+                    continue
+
+                label = self._label_from_entry(label_entry)
+                id_value = label_to_id.get(label)
+                if id_value is not None:
+                    id_to_color[id_value] = color
+
+        return id_to_color
+
+    def _parse_id_color_dict(self, value: dict) -> dict[str, np.ndarray]:
+        result = {}
+
+        for id_value, color_value in value.items():
+            color = self._parse_color_value(color_value)
+            if color is not None:
+                result[self._normalize_id_key(id_value)] = color
+
+        return result
+
+    def _label_to_id_map(self, id_to_labels: dict) -> dict[Any, str]:
+        result = {}
+
+        if not isinstance(id_to_labels, dict):
+            return result
+
+        for id_value, label_entry in id_to_labels.items():
+            label = self._label_from_entry(label_entry)
+            if label is not None:
+                result[label] = self._normalize_id_key(id_value)
+
+        return result
+
+    def _label_from_entry(self, label_entry: Any) -> Any:
+        if isinstance(label_entry, dict):
+            class_label = label_entry.get("class")
+            if isinstance(class_label, list) and class_label:
+                return class_label[0]
+            return class_label
+
+        return label_entry
+
+    def _parse_color_value(self, value: Any) -> np.ndarray | None:
+        if isinstance(value, str):
+            numbers = re.findall(r"\d+(?:\.\d+)?", value)
+            if len(numbers) < 3:
+                return None
+            value = [float(number) for number in numbers[:3]]
+
+        if isinstance(value, dict):
+            keys = ("r", "g", "b")
+            if not all(key in value for key in keys):
+                return None
+            value = [value[key] for key in keys]
+
+        if isinstance(value, np.ndarray):
+            value = value.tolist()
+
+        if not isinstance(value, (list, tuple)) or len(value) < 3:
+            return None
+
+        color = np.asarray(value[:3], dtype=np.float32)
+        max_value = float(np.max(color)) if color.size else 0.0
+        if max_value <= 1.0:
+            color = color * 255.0
+
+        return np.clip(color, 0, 255).astype(np.uint8)
+
+    def _normalize_id_key(self, id_value: Any) -> str:
+        try:
+            return str(int(id_value))
+        except Exception:
+            return str(id_value)
+
+    def _fallback_color(self, id_value: Any) -> np.ndarray:
+        try:
+            seed = int(id_value)
+        except Exception:
+            digest = hashlib.sha256(str(id_value).encode("utf-8")).digest()
+            seed = int.from_bytes(digest[:4], "little")
+
+        rng = np.random.default_rng(seed)
+        return rng.integers(64, 256, size=3, dtype=np.uint8)
 
     def _write_depth(self, entry: Any, frame: str, prefix: str):
             depth_arr, _ = self._split_data_info(entry)
