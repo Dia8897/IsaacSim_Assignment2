@@ -51,24 +51,19 @@ def _randomize_light(light):
 
     
 def create_material_pool(count):
-    #dropped .functional because unsure if compatible with older isaacsim versions (rep.functional.create.material(...))
-    #if rep.modify.material fails, try rep.randomizer.materials
+
     materials = []
 
     for i in range(count):
         color = (random.uniform(0, 1), random.uniform(0, 1), random.uniform(0, 1))
-        material = rep.create.material(
-            mdl="OmniPBR.mdl",
-            diffuse_color_constant=color,
-        )
+        material = rep.create.material_omnipbr(diffuse=color) 
         materials.append(material)
 
     return materials        
 
 def _randomize_material(list_of_prims, material_pool):
-    for prim in list_of_prims:
-        chosen_material = random.choice(material_pool)
-        rep.modify.material(prim, chosen_material)
+
+    rep.randomizer.materials(material_pool, input_prims=list_of_prims)
 
 
 
