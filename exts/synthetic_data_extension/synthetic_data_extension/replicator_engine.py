@@ -39,9 +39,9 @@ def _randomize_transform(list_of_prims):
         with prim:
             rep.modify.pose(  
                position = rep.distribution.uniform((-8, -8, 0.1), (8, 8, 0.1)),
-               rotation = rep.distribution.uniform((0, 0, 0), (360, 360, 360)),
+               rotation = rep.distribution.uniform((0, 0, 0), (0, 0, 360)),
                scale = rep.distribution.uniform((0.75, 0.75, 0.75), (1.25, 1.25, 1.25)),
-    )
+        )
 
 def _randomize_light(light):
     with light:
@@ -67,12 +67,13 @@ def create_material_pool(count):
     return materials        
 
 def _randomize_material(list_of_prims, material_pool):
+    for prim in list_of_prims:
+        with prim:
+            rep.randomizer.materials(material_pool)
 
-    rep.randomizer.materials(material_pool, input_prims=list_of_prims)
 
 
-
-def run(num_frames:int, render_product, writer, toggles:dict):
+"""def run(num_frames:int, render_product, writer, toggles:dict):
     # num_frames: how many frames to generate
     # render_product: camera output
     # writer: saves data
@@ -90,7 +91,35 @@ def run(num_frames:int, render_product, writer, toggles:dict):
     # execute everything just defined
     rep.orchestrator.run()
     if writer is not None:
+        writer.detach()"""
+def run(num_frames: int, render_product, writer, toggles: dict):
+    if writer is not None:
+        print("Attaching writer to render product...")
+        writer.attach([render_product])
+
+    with rep.trigger.on_frame(num_frames=num_frames):
+        if toggles.get("transform", False):
+            rep.randomizer.randomize_transform()
+
+        if toggles.get("light", False):
+            rep.randomizer.randomize_light()
+
+        if toggles.get("material", False):
+            rep.randomizer.randomize_material()
+
+    print("Starting Replicator orchestrator...")
+    rep.orchestrator.run()
+
+    try:
+        rep.orchestrator.wait_until_complete()
+    except Exception as e:
+        print("wait_until_complete not available or failed:", e)
+
+    print("Replicator finished.")
+
+    if writer is not None:
         writer.detach()
+        print("Writer detached.")
 
 def generate(config):
     with rep.new_layer():

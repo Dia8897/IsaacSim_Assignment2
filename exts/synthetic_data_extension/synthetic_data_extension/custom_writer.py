@@ -93,24 +93,58 @@ class CustomWriter(Writer):
 
         self._write_metadata()
 
-    def write(self, data:dict[str, Any]):
+    def write(self, data: dict[str, Any]):
         frame = f"{self._frame_id:06d}"
-        print(f"[{frame}] write() top-level keys: {list(data.keys())}")  # TEMP DEBUG - remove once structure is confirmed
 
-        wrote_any = False
-        for key, value in data.items():
-            if not isinstance(value, dict):
-                continue
-            rp_prefix = self._safe_name(str(key))
+        print(f"[{frame}] write() top-level keys: {list(data.keys())}")
+
+        annotator_keys = {
+            "rgb",
+            "distance_to_image_plane",
+            "semantic_segmentation",
+            "instance_segmentation",
+            "bounding_box_2d_tight",
+        }
+
+        # Case 1: data is grouped under "renderProducts"
+        if "renderProducts" in data:
+            for rp_name, annotators_data in data["renderProducts"].items():
+                rp_prefix = self._safe_name(str(rp_name))
+                self._write_annotators_for_frame(
+                    annotators_data=annotators_data,
+                    frame=frame,
+                    render_product_prefix=rp_prefix,
+                )
+
+        # Case 2: data itself contains annotators directly
+        elif annotator_keys.intersection(data.keys()):
             self._write_annotators_for_frame(
-                annotators_data=value,
+                annotators_data=data,
                 frame=frame,
-                render_product_prefix=rp_prefix,
+                render_product_prefix="",
             )
-            wrote_any = True
 
-        if not wrote_any:
-            print(f"[{frame}] write() found no render-product dict in data - nothing written")
+        # Case 3: data is grouped by render product name directly
+        else:
+            wrote_any = False
+
+            for key, value in data.items():
+                if not isinstance(value, dict):
+                    continue
+
+                if not annotator_keys.intersection(value.keys()):
+                    continue
+
+                rp_prefix = self._safe_name(str(key))
+                self._write_annotators_for_frame(
+                    annotators_data=value,
+                    frame=frame,
+                    render_product_prefix=rp_prefix,
+                )
+                wrote_any = True
+
+            if not wrote_any:
+                print(f"[{frame}] No known annotator keys found. Nothing written.")
 
         self._frame_id += 1
 
