@@ -189,12 +189,12 @@ class CustomWriter(Writer):
         out_folder = self.output_dir / prefix / folder
         out_folder.mkdir(parents=True, exist_ok=True)
 
-    
+
         mask_path = out_folder / f"{frame}.npy"
         print(f"[{frame}] Writing {mask_path}")
         np.save(mask_path, mask_arr)
 
-    
+
         info_path = out_folder / f"{frame}_{info_name}.json"
         print(f"[{frame}] Writing {info_path}")
 
@@ -210,7 +210,27 @@ class CustomWriter(Writer):
             "info": self._json_safe(info),
         },
     )
-                 
+
+        # raw mask_arr holds label/instance ids, not viewable as-is, so also
+        # save a colorized png purely for visual inspection
+        colorized = self._colorize_mask(mask_arr)
+        vis_path = f"{prefix}{folder}/{frame}_colorized.png"
+        print(f"[{frame}] Writing {vis_path}")
+        self.backend.schedule(F.write_image, path=vis_path, data=colorized)
+
+    def _colorize_mask(self, mask_arr: np.ndarray) -> np.ndarray:
+        """Maps each label/instance id to a deterministic RGB color, id 0 (background) stays black."""
+        ids = mask_arr.reshape(mask_arr.shape[:2]) if mask_arr.ndim == 3 else mask_arr
+        colorized = np.zeros((*ids.shape, 3), dtype=np.uint8)
+
+        for id_value in np.unique(ids):
+            if id_value == 0:
+                continue
+            rng = np.random.default_rng(int(id_value))
+            colorized[ids == id_value] = rng.integers(64, 256, size=3, dtype=np.uint8)
+
+        return colorized
+
     def _write_depth(self, entry: Any, frame: str, prefix: str):
             depth_arr, _ = self._split_data_info(entry)
             depth_arr = np.asarray(depth_arr, dtype=np.float32)
@@ -338,8 +358,8 @@ class CustomWriter(Writer):
             "files": {
                 "rgb": "rgb/<frame>.png",
                 "depth": "depth/<frame>.npy",
-                "semantic": "semantic/<frame>.npy + semantic/<frame>_semantic_labels.json",
-                "instance": "instance/<frame>.npy + instance/<frame>_instance_info.json",
+                "semantic": "semantic/<frame>.npy + semantic/<frame>_semantic_labels.json + semantic/<frame>_colorized.png",
+                "instance": "instance/<frame>.npy + instance/<frame>_instance_info.json + instance/<frame>_colorized.png",
                 "bbox_2d": "bbox_2d/<frame>.json",
             },
         }
