@@ -95,17 +95,22 @@ class CustomWriter(Writer):
 
     def write(self, data:dict[str, Any]):
         frame = f"{self._frame_id:06d}"
-        if "renderProducts" in data:
-            for rp_name, annotators_data in data["renderProducts"].items():
-                rp_prefix = self._safe_name(str(rp_name))
-                self._write_annotators_for_frame(
-                    annotators_data=annotators_data,
-                    frame=frame,
-                    render_product_prefix=rp_prefix,
-                )
+        print(f"[{frame}] write() top-level keys: {list(data.keys())}")  # TEMP DEBUG - remove once structure is confirmed
 
-            self._frame_id += 1
-            return
+        wrote_any = False
+        for key, value in data.items():
+            if not isinstance(value, dict):
+                continue
+            rp_prefix = self._safe_name(str(key))
+            self._write_annotators_for_frame(
+                annotators_data=value,
+                frame=frame,
+                render_product_prefix=rp_prefix,
+            )
+            wrote_any = True
+
+        if not wrote_any:
+            print(f"[{frame}] write() found no render-product dict in data - nothing written")
 
         self._frame_id += 1
 
