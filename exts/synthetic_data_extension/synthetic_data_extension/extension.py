@@ -21,57 +21,58 @@ class SyntheticDataExtension(omni.ext.IExt):
 
     def _build_ui(self):
         with self._window.frame:
-            with ui.VStack(spacing=10):
-                # stacks its children vertically
-                ui.Label("Synthetic Data Generation")
-                with ui.HStack(spacing=5):
-                    ui.Label("Asset config path")
-                    self.asset_config_field=ui.StringField(model=self.asset_config_model)
+            with ui.ScrollingFrame(height=500):
+                with ui.VStack(spacing=10):
+                    # stacks its children vertically
+                    ui.Label("Synthetic Data Generation")
+                    with ui.HStack(spacing=5):
+                        ui.Label("Asset config path")
+                        self.asset_config_field=ui.StringField(model=self.asset_config_model)
+                        ui.Button(
+                            "Browse",
+                            clicked_fn=self._browse_asset_config
+                        )
+                    ui.Label("instance counts")
+                    self.instance_count_stack=ui.VStack(spacing=5)
+                    ui.Label("Number of frames")
+                    ui.IntField(model=self.num_frames_model)
+                    ui.Label("Randomization")
+                    with ui.HStack(spacing=1):
+                        ui.CheckBox(model=self.randomization_models["light"])
+                        ui.Label("Light")               
+                    with ui.HStack(spacing=1):
+                        ui.CheckBox(model=self.randomization_models["material"])
+                        ui.Label("Material")               
+                    with ui.HStack(spacing=1):
+                        ui.CheckBox(model=self.randomization_models["transform"])
+                        ui.Label("Transform")
+                    ui.Label("Output")
+                    with ui.HStack(spacing=1):
+                        ui.CheckBox(model=self.output_models["rgb"])
+                        ui.Label("RGB")
+                    with ui.HStack(spacing=1):
+                        ui.CheckBox(model=self.output_models["depth"])
+                        ui.Label("Depth")
+                    with ui.HStack(spacing=1):
+                        ui.CheckBox(model=self.output_models["semantic"])
+                        ui.Label("Semantic")
+                    with ui.HStack(spacing=1):
+                        ui.CheckBox(model=self.output_models["instance"])
+                        ui.Label("Instance")
+                    with ui.HStack(spacing=1):
+                        ui.CheckBox(model=self.output_models["bbox_2d"])
+                        ui.Label("BBox_2D")
+                    ui.Label("Output Directory")
+                    with ui.HStack(spacing=1):
+                        self.output_dir_field=ui.StringField(model=self.output_dir_model)
+                        ui.Button(
+                            "Browse",
+                            clicked_fn=self._browse_output_dir
+                        )
                     ui.Button(
-                        "Browse",
-                        clicked_fn=self._browse_asset_config
+                        "Generate and Render",
+                        clicked_fn=self._generate_and_render
                     )
-                ui.Label("instance counts")
-                self.instance_count_stack=ui.VStack(spacing=5)
-                ui.Label("Number of frames")
-                ui.IntField(model=self.num_frames_model)
-                ui.Label("Randomization")
-                with ui.HStack(spacing=1):
-                    ui.CheckBox(model=self.randomization_models["light"])
-                    ui.Label("Light")               
-                with ui.HStack(spacing=1):
-                    ui.CheckBox(model=self.randomization_models["material"])
-                    ui.Label("Material")               
-                with ui.HStack(spacing=1):
-                    ui.CheckBox(model=self.randomization_models["transform"])
-                    ui.Label("Transform")
-                ui.Label("Output")
-                with ui.HStack(spacing=1):
-                    ui.CheckBox(model=self.output_models["rgb"])
-                    ui.Label("RGB")
-                with ui.HStack(spacing=1):
-                    ui.CheckBox(model=self.output_models["depth"])
-                    ui.Label("Depth")
-                with ui.HStack(spacing=1):
-                    ui.CheckBox(model=self.output_models["semantic"])
-                    ui.Label("Semantic")
-                with ui.HStack(spacing=1):
-                    ui.CheckBox(model=self.output_models["instance"])
-                    ui.Label("Instance")
-                with ui.HStack(spacing=1):
-                    ui.CheckBox(model=self.output_models["bbox_2d"])
-                    ui.Label("BBox_2D")
-                ui.Label("Output Directory")
-                with ui.HStack(spacing=1):
-                    self.output_dir_field=ui.StringField(model=self.output_dir_model)
-                    ui.Button(
-                        "Browse",
-                        clicked_fn=self._browse_output_dir
-                    )
-                ui.Button(
-                    "Generate and Render",
-                    clicked_fn=self._generate_and_render
-                )
     def _browse_asset_config(self):
         # to implement
         print("Browse asset config clicked")
