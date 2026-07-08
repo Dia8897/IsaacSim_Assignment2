@@ -1,0 +1,24 @@
+{
+  "writer": "CustomWriter",
+  "version": "0.0.1",
+  "uses_basic_writer": false,
+  "data_structure": "renderProduct",
+  "depth_annotator": "distance_to_image_plane",
+  "depth_units": "meters",
+  "enabled_modalities": {
+    "rgb": true,
+    "depth": true,
+    "semantic": true,
+    "instance": true,
+    "bbox_2d": true,
+    "pointcloud": false
+  },
+  "files": {
+    "rgb": "rgb/<frame>.png",
+    "depth": "depth/<frame>.npy",
+    "semantic": "semantic/<frame>.npy + semantic/<frame>_semantic_labels.json + semantic/<frame>_colorized.png",
+    "instance": "instance/<frame>.npy + instance/<frame>_instance_info.json + instance/<frame>_colorized.png",
+    "bbox_2d": "bbox_2d/<frame>.json",
+    "pointcloud": "pointcloud/<frame>.ply"
+  }
+}

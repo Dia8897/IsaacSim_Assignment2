@@ -1,0 +1,12 @@
+{
+  "frame": "000001",
+  "modality": "semantic",
+  "mask_file": "000001.npy",
+  "mask_name": "semantic",
+  "mask_shape": [
+    1024,
+    1024
+  ],
+  "mask_dtype": "uint32",
+  "info": {}
+}

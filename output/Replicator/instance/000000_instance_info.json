@@ -1,0 +1,12 @@
+{
+  "frame": "000000",
+  "modality": "instance",
+  "mask_file": "000000.npy",
+  "mask_name": "instance",
+  "mask_shape": [
+    1024,
+    1024
+  ],
+  "mask_dtype": "uint32",
+  "info": {}
+}
