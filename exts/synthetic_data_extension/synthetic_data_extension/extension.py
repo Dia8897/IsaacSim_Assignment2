@@ -62,6 +62,9 @@ class SyntheticDataExtension(omni.ext.IExt):
                     with ui.HStack(spacing=1):
                         ui.CheckBox(model=self.output_models["bbox_2d"])
                         ui.Label("BBox_2D")
+                    with ui.HStack(spacing=1):
+                        ui.CheckBox(model=self.output_models["point_cloud"])
+                        ui.Label("Point Cloud")
                     ui.Label("Output Directory")
                     with ui.HStack(spacing=1):
                         self.output_dir_field=ui.StringField(model=self.output_dir_model)
@@ -138,6 +141,7 @@ class SyntheticDataExtension(omni.ext.IExt):
                 "semantic": self.output_models["semantic"].get_value_as_bool(),
                 "instance": self.output_models["instance"].get_value_as_bool(),
                 "bbox_2d": self.output_models["bbox_2d"].get_value_as_bool(),
+                "point_cloud":self.output_models["point_cloud"].get_value_as_bool(),
             }
         }
 
@@ -247,6 +251,7 @@ class SyntheticDataExtension(omni.ext.IExt):
             "semantic":ui.SimpleBoolModel(self.outputs["semantic"]),
             "instance":ui.SimpleBoolModel(self.outputs["instance"]),
             "bbox_2d":ui.SimpleBoolModel(self.outputs["bbox_2d"]),
+            "point_cloud": ui.SimpleBoolModel(self.outputs["point_cloud"]),
         }
         self.output_dir_model=ui.SimpleStringModel(self.output_dir)
         self.asset_config_model=ui.SimpleStringModel(self.asset_config_path)
