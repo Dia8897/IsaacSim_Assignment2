@@ -21,6 +21,7 @@ class CustomWriter(Writer):
          pointcloud:bool= False,
         output_dir: str | None = None,
         backend: BaseBackend | None = None,
+        camera_fov_degrees: float = 60.0,
         
        
         **kwargs,
