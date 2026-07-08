@@ -73,6 +73,9 @@ def _randomize_transform(list_of_prims):
     for prim in list_of_prims:
         with prim:
             rep.modify.pose(
+                position=rep.distribution.uniform(
+                    (-8, -8, 0.1),
+                    (8, 8, 0.1)),                                                    
                 rotation=rep.distribution.uniform(
                     (0, 0, 0),
                     (0, 0, 360)
