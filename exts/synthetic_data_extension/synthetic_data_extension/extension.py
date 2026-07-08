@@ -63,7 +63,7 @@ class SyntheticDataExtension(omni.ext.IExt):
                         ui.CheckBox(model=self.output_models["bbox_2d"])
                         ui.Label("BBox_2D")
                     with ui.HStack(spacing=1):
-                        ui.CheckBox(model=self.output_models["point_cloud"])
+                        ui.CheckBox(model=self.output_models["pointcloud"])
                         ui.Label("Point Cloud")
                     ui.Label("Output Directory")
                     with ui.HStack(spacing=1):
@@ -141,7 +141,7 @@ class SyntheticDataExtension(omni.ext.IExt):
                 "semantic": self.output_models["semantic"].get_value_as_bool(),
                 "instance": self.output_models["instance"].get_value_as_bool(),
                 "bbox_2d": self.output_models["bbox_2d"].get_value_as_bool(),
-                "point_cloud":self.output_models["point_cloud"].get_value_as_bool(),
+                "pointcloud":self.output_models["pointcloud"].get_value_as_bool(),
             }
         }
 
@@ -193,6 +193,7 @@ class SyntheticDataExtension(omni.ext.IExt):
             instance=settings["outputs"]["instance"],
             bbox_2d=settings["outputs"]["bbox_2d"],
             output_dir=settings["output_dir"],
+            pointcloud=settings["outputs"]["pointcloud"],
         )
 
         config = {
@@ -201,7 +202,7 @@ class SyntheticDataExtension(omni.ext.IExt):
             "instance_counts": settings["instance_counts"],
             "num_frames": settings["num_frames"],
             "writer": writer,
-            "toggles": settings["randomization"]
+            "toggles": settings["randomization"],
         }
 
         asyncio.ensure_future(self._run_generate_async(config))
@@ -251,7 +252,7 @@ class SyntheticDataExtension(omni.ext.IExt):
             "semantic":ui.SimpleBoolModel(self.outputs["semantic"]),
             "instance":ui.SimpleBoolModel(self.outputs["instance"]),
             "bbox_2d":ui.SimpleBoolModel(self.outputs["bbox_2d"]),
-            "point_cloud": ui.SimpleBoolModel(self.outputs["point_cloud"]),
+            "pointcloud": ui.SimpleBoolModel(True),
         }
         self.output_dir_model=ui.SimpleStringModel(self.output_dir)
         self.asset_config_model=ui.SimpleStringModel(self.asset_config_path)

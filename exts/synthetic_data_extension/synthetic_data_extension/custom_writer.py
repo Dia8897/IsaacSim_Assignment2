@@ -18,12 +18,10 @@ class CustomWriter(Writer):
         semantic: bool = True,
         instance: bool = True,
         bbox_2d: bool = True,
-         pointcloud:bool= False,
+        pointcloud:bool= False,
         output_dir: str | None = None,
         backend: BaseBackend | None = None,
         camera_fov_degrees: float = 60.0,
-        
-       
         **kwargs,
 
     ):
@@ -51,12 +49,16 @@ class CustomWriter(Writer):
                 self.backend = BackendDispatch(
                     {"paths": {"out_dir": str(self.output_dir)}}
                 )
+        if pointcloud:
+            rgb =True
+            semantic = True
+            depth = True        
         self.enable_rgb = rgb 
         self.enable_depth = depth
         self.enable_semantic = semantic 
         self.enable_instance = instance 
         self.enable_bbox_2d = bbox_2d
-        self.enable_point_cloud = pointcloud
+        self.enable_pointcloud = pointcloud
         self.camera_fov_degrees = float(camera_fov_degrees)
 
         self.annotators = []  
@@ -97,10 +99,7 @@ class CustomWriter(Writer):
                     },
                 )
             )    
-        if pointcloud:
-            rgb =True
-            semantic = True
-            depth = True
+        
 
 
         self._frame_id = 0
@@ -210,17 +209,20 @@ class CustomWriter(Writer):
                 frame,
                 prefix,
             )
-        if (self.enable_point_cloud and 
+        if (self.enable_pointcloud and 
             "rgb" in annotators_data and 
             "distance_to_image_plane" in annotators_data and
               "semantic_segmentation" in annotators_data
               ):
-            self._write_point_cloud(
+            self._write_labeled_pointcloud(
+                frame=frame,
+                prefix=prefix,
                 rgb_entry=annotators_data["rgb"],
                 depth_entry=annotators_data["distance_to_image_plane"],
                 semantic_entry=annotators_data["semantic_segmentation"],
-                frame=frame,
-                prefix=prefix,
+                
+
+                
             )    
 
 
@@ -326,6 +328,13 @@ class CustomWriter(Writer):
                 return np.clip(image * 255.0, 0, 255).astype(np.uint8)
 
         return np.clip(image, 0, 255).astype(np.uint8)
+    def _squeeze_single_channel(self, arr: np.ndarray) -> np.ndarray:
+        arr = np.asarray(arr)
+
+        if arr.ndim == 3 and arr.shape[-1] == 1:
+            return arr[:, :, 0]
+
+        return arr
 
     def _extract_id_to_color(self, info: dict) -> dict[str, np.ndarray]:
         id_to_color = {}
@@ -434,8 +443,10 @@ class CustomWriter(Writer):
     def _write_depth(self, entry: Any, frame: str, prefix: str):
             depth_arr, _ = self._split_data_info(entry)
             depth_arr = np.asarray(depth_arr, dtype=np.float32)
+            depth_arr = self._squeeze_single_channel(depth_arr)
 
             folder = self.output_dir / prefix / "depth"
+            
             folder.mkdir(parents=True, exist_ok=True)
 
             path = folder / f"{frame}.npy"
@@ -609,93 +620,93 @@ class CustomWriter(Writer):
         )
 
 
-def _depth_to_labeled_points(
-    self,
-    rgb: np.ndarray,
-    depth: np.ndarray,
-    semantic: np.ndarray,
-    instance: np.ndarray | None = None,
-):
-    h, w = depth.shape
+    def _depth_to_labeled_points(
+        self,
+        rgb: np.ndarray,
+        depth: np.ndarray,
+        semantic: np.ndarray,
+        instance: np.ndarray | None = None,
+    ):
+        h, w = depth.shape
 
-    fov_rad = np.deg2rad(self.camera_fov_degrees)
+        fov_rad = np.deg2rad(self.camera_fov_degrees)
 
-    fx = w / (2.0 * np.tan(fov_rad / 2.0))
-    fy = fx
+        fx = w / (2.0 * np.tan(fov_rad / 2.0))
+        fy = fx
 
-    cx = w / 2.0
-    cy = h / 2.0
+        cx = w / 2.0
+        cy = h / 2.0
 
-    u, v = np.meshgrid(np.arange(w), np.arange(h))
+        u, v = np.meshgrid(np.arange(w), np.arange(h))
 
-    z = depth.astype(np.float32)
+        z = depth.astype(np.float32)
 
-    valid = np.isfinite(z) & (z > 0.0)
+        valid = np.isfinite(z) & (z > 0.0)
 
-    x = (u.astype(np.float32) - cx) * z / fx
-    y = (v.astype(np.float32) - cy) * z / fy
+        x = (u.astype(np.float32) - cx) * z / fx
+        y = (v.astype(np.float32) - cy) * z / fy
 
-    points = np.stack([x, y, z], axis=-1)
+        points = np.stack([x, y, z], axis=-1)
 
-    points = points[valid]
-    colors = rgb[valid]
-    semantic_labels = semantic[valid]
+        points = points[valid]
+        colors = rgb[valid]
+        semantic_labels = semantic[valid]
 
-    if instance is not None:
-        instance_labels = instance[valid]
-    else:
-        instance_labels = None
+        if instance is not None:
+            instance_labels = instance[valid]
+        else:
+            instance_labels = None
 
-    colors = self._normalize_rgb_image(colors)
+        colors = self._normalize_rgb_image(colors)
 
-    return points, colors, semantic_labels, instance_labels
+        return points, colors, semantic_labels, instance_labels
 
 
-def _write_ply_ascii(
-    self,
-    ply_path: Path,
-    points: np.ndarray,
-    colors: np.ndarray,
-    semantic_labels: np.ndarray,
-    instance_labels: np.ndarray | None = None,
-):
-    ply_path.parent.mkdir(parents=True, exist_ok=True)
+    def _write_ply_ascii(
+        self,
+        ply_path: Path,
+        points: np.ndarray,
+        colors: np.ndarray,
+        semantic_labels: np.ndarray,
+        instance_labels: np.ndarray | None = None,
+    ):
+        ply_path.parent.mkdir(parents=True, exist_ok=True)
 
-    has_instance = instance_labels is not None
+        has_instance = instance_labels is not None
 
-    with ply_path.open("w", encoding="utf-8") as f:
-        f.write("ply\n")
-        f.write("format ascii 1.0\n")
-        f.write(f"element vertex {len(points)}\n")
-        f.write("property float x\n")
-        f.write("property float y\n")
-        f.write("property float z\n")
-        f.write("property uchar red\n")
-        f.write("property uchar green\n")
-        f.write("property uchar blue\n")
-        f.write("property uint semantic_label\n")
-
-        if has_instance:
-            f.write("property uint instance_label\n")
-
-        f.write("end_header\n")
-
-        for i in range(len(points)):
-            x, y, z = points[i]
-            r, g, b = colors[i][:3]
-            sem = int(semantic_labels[i])
+        with ply_path.open("w", encoding="utf-8") as f:
+            f.write("ply\n")
+            f.write("format ascii 1.0\n")
+            f.write(f"element vertex {len(points)}\n")
+            f.write("property float x\n")
+            f.write("property float y\n")
+            f.write("property float z\n")
+            f.write("property uchar red\n")
+            f.write("property uchar green\n")
+            f.write("property uchar blue\n")
+            f.write("property uint semantic_label\n")
 
             if has_instance:
-                inst = int(instance_labels[i])
-                f.write(
-                    f"{float(x)} {float(y)} {float(z)} "
-                    f"{int(r)} {int(g)} {int(b)} {sem} {inst}\n"
-                )
-            else:
-                f.write(
-                    f"{float(x)} {float(y)} {float(z)} "
-                    f"{int(r)} {int(g)} {int(b)} {sem}\n"
-                )
+                f.write("property uint instance_label\n")
+
+            f.write("end_header\n")
+
+            for i in range(len(points)):
+                x, y, z = points[i]
+                r, g, b = colors[i][:3]
+                sem = int(semantic_labels[i])
+
+                if has_instance:
+                    inst = int(instance_labels[i])
+                    f.write(
+                        f"{float(x)} {float(y)} {float(z)} "
+                        f"{int(r)} {int(g)} {int(b)} {sem} {inst}\n"
+                    )
+                else:
+                    f.write(
+                        f"{float(x)} {float(y)} {float(z)} "
+                        f"{int(r)} {int(g)} {int(b)} {sem}\n"
+                    )
 
     def _write_metadata(self):
         metadata_path = self.output_dir / "metadata.json"

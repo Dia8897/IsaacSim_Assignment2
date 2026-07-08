@@ -10,7 +10,7 @@ def create_camera_and_render_product(resolution):
 
 def build_ground_and_lighting():
     # Create a ground plane
-    ground = rep.create.plane(scale=(300, 300, 1), position=(0, 0, 0))
+    ground = rep.create.plane(scale=(3000, 3000, 1), position=(0, 0, 0))
     
     # Create a directional light
     light = rep.create.light(rotation=(315,0,0), intensity=8000, light_type="distant")
