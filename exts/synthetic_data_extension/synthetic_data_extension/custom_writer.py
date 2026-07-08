@@ -18,9 +18,13 @@ class CustomWriter(Writer):
         semantic: bool = True,
         instance: bool = True,
         bbox_2d: bool = True,
+         pointcloud:bool= False,
         output_dir: str | None = None,
         backend: BaseBackend | None = None,
+        
+       
         **kwargs,
+
     ):
         self.version ="0.0.1"
         self.data_structure = "renderProduct"
@@ -50,7 +54,9 @@ class CustomWriter(Writer):
         self.enable_depth = depth
         self.enable_semantic = semantic 
         self.enable_instance = instance 
-        self.enable_bbox_2d = bbox_2d            
+        self.enable_bbox_2d = bbox_2d
+        self.enable_point_cloud = pointcloud
+        self.camera_fov_degrees = float(camera_fov_degrees)
 
         self.annotators = []  
         if rgb:
@@ -90,6 +96,12 @@ class CustomWriter(Writer):
                     },
                 )
             )    
+        if pointcloud:
+            rgb =True
+            semantic = True
+            depth = True
+
+
         self._frame_id = 0
 
         self._write_metadata()
@@ -197,6 +209,20 @@ class CustomWriter(Writer):
                 frame,
                 prefix,
             )
+        if (self.enable_point_cloud and 
+            "rgb" in annotators_data and 
+            "distance_to_image_plane" in annotators_data and
+              "semantic_segmentation" in annotators_data
+              ):
+            self._write_point_cloud(
+                rgb_entry=annotators_data["rgb"],
+                depth_entry=annotators_data["distance_to_image_plane"],
+                semantic_entry=annotators_data["semantic_segmentation"],
+                frame=frame,
+                prefix=prefix,
+            )    
+
+
 
 
     def _write_rgb(self, entry: Any, frame:str, prefix:str):
@@ -258,6 +284,7 @@ class CustomWriter(Writer):
         vis_path = f"{prefix}{folder}/{frame}_colorized.png"
         print(f"[{frame}] Writing {vis_path}")
         self.backend.schedule(F.write_image, path=vis_path, data=colorized)
+
 
     def _colorize_mask(self, mask_arr: np.ndarray, info: dict | None = None) -> np.ndarray:
         """Build a viewable RGB preview for segmentation masks.
@@ -508,7 +535,166 @@ class CustomWriter(Writer):
             return class_label
 
         return label_entry 
-    
+    def _write_labeled_pointcloud(
+        self,
+        frame: str,
+        prefix: str,
+        rgb_entry: Any,
+        depth_entry: Any,
+        semantic_entry: Any,
+        instance_entry: Any | None = None,
+    ):
+        rgb_arr, _ = self._split_data_info(rgb_entry)
+        depth_arr, _ = self._split_data_info(depth_entry)
+        semantic_arr, _ = self._split_data_info(semantic_entry)
+
+        rgb_arr = np.asarray(rgb_arr)
+        depth_arr = np.asarray(depth_arr, dtype=np.float32)
+        semantic_arr = np.asarray(semantic_arr)
+
+        rgb_arr = self._normalize_rgb_image(rgb_arr)
+
+        if rgb_arr.ndim == 3 and rgb_arr.shape[-1] >= 3:
+            rgb_arr = rgb_arr[:, :, :3]
+
+        depth_arr = self._squeeze_single_channel(depth_arr)
+        semantic_arr = self._squeeze_single_channel(semantic_arr)
+
+        instance_arr = None
+
+        if instance_entry is not None:
+            instance_arr, _ = self._split_data_info(instance_entry)
+            instance_arr = np.asarray(instance_arr)
+            instance_arr = self._squeeze_single_channel(instance_arr)
+
+        if depth_arr.ndim != 2:
+            print(f"[{frame}] Point cloud skipped: invalid depth shape {depth_arr.shape}")
+            return
+
+        h, w = depth_arr.shape
+
+        if rgb_arr.shape[0] != h or rgb_arr.shape[1] != w:
+            print(f"[{frame}] Point cloud skipped: RGB and depth size mismatch.")
+            return
+
+        if semantic_arr.shape[0] != h or semantic_arr.shape[1] != w:
+            print(f"[{frame}] Point cloud skipped: semantic and depth size mismatch.")
+            return
+
+        if instance_arr is not None:
+            if instance_arr.shape[0] != h or instance_arr.shape[1] != w:
+                print(f"[{frame}] Instance labels ignored: instance and depth size mismatch.")
+                instance_arr = None
+
+        points, colors, semantic_labels, instance_labels = self._depth_to_labeled_points(
+            rgb=rgb_arr,
+            depth=depth_arr,
+            semantic=semantic_arr,
+            instance=instance_arr,
+        )
+
+        out_folder = self.output_dir / prefix / "pointcloud"
+        out_folder.mkdir(parents=True, exist_ok=True)
+
+        ply_path = out_folder / f"{frame}.ply"
+        print(f"[{frame}] Writing {ply_path}")
+
+        self._write_ply_ascii(
+            ply_path=ply_path,
+            points=points,
+            colors=colors,
+            semantic_labels=semantic_labels,
+            instance_labels=instance_labels,
+        )
+
+
+def _depth_to_labeled_points(
+    self,
+    rgb: np.ndarray,
+    depth: np.ndarray,
+    semantic: np.ndarray,
+    instance: np.ndarray | None = None,
+):
+    h, w = depth.shape
+
+    fov_rad = np.deg2rad(self.camera_fov_degrees)
+
+    fx = w / (2.0 * np.tan(fov_rad / 2.0))
+    fy = fx
+
+    cx = w / 2.0
+    cy = h / 2.0
+
+    u, v = np.meshgrid(np.arange(w), np.arange(h))
+
+    z = depth.astype(np.float32)
+
+    valid = np.isfinite(z) & (z > 0.0)
+
+    x = (u.astype(np.float32) - cx) * z / fx
+    y = (v.astype(np.float32) - cy) * z / fy
+
+    points = np.stack([x, y, z], axis=-1)
+
+    points = points[valid]
+    colors = rgb[valid]
+    semantic_labels = semantic[valid]
+
+    if instance is not None:
+        instance_labels = instance[valid]
+    else:
+        instance_labels = None
+
+    colors = self._normalize_rgb_image(colors)
+
+    return points, colors, semantic_labels, instance_labels
+
+
+def _write_ply_ascii(
+    self,
+    ply_path: Path,
+    points: np.ndarray,
+    colors: np.ndarray,
+    semantic_labels: np.ndarray,
+    instance_labels: np.ndarray | None = None,
+):
+    ply_path.parent.mkdir(parents=True, exist_ok=True)
+
+    has_instance = instance_labels is not None
+
+    with ply_path.open("w", encoding="utf-8") as f:
+        f.write("ply\n")
+        f.write("format ascii 1.0\n")
+        f.write(f"element vertex {len(points)}\n")
+        f.write("property float x\n")
+        f.write("property float y\n")
+        f.write("property float z\n")
+        f.write("property uchar red\n")
+        f.write("property uchar green\n")
+        f.write("property uchar blue\n")
+        f.write("property uint semantic_label\n")
+
+        if has_instance:
+            f.write("property uint instance_label\n")
+
+        f.write("end_header\n")
+
+        for i in range(len(points)):
+            x, y, z = points[i]
+            r, g, b = colors[i][:3]
+            sem = int(semantic_labels[i])
+
+            if has_instance:
+                inst = int(instance_labels[i])
+                f.write(
+                    f"{float(x)} {float(y)} {float(z)} "
+                    f"{int(r)} {int(g)} {int(b)} {sem} {inst}\n"
+                )
+            else:
+                f.write(
+                    f"{float(x)} {float(y)} {float(z)} "
+                    f"{int(r)} {int(g)} {int(b)} {sem}\n"
+                )
 
     def _write_metadata(self):
         metadata_path = self.output_dir / "metadata.json"
@@ -526,6 +712,7 @@ class CustomWriter(Writer):
                 "semantic": self.enable_semantic,
                 "instance": self.enable_instance,
                 "bbox_2d": self.enable_bbox_2d,
+                "pointcloud": self.enable_pointcloud,
             },
             "files": {
                 "rgb": "rgb/<frame>.png",
@@ -533,6 +720,8 @@ class CustomWriter(Writer):
                 "semantic": "semantic/<frame>.npy + semantic/<frame>_semantic_labels.json + semantic/<frame>_colorized.png",
                 "instance": "instance/<frame>.npy + instance/<frame>_instance_info.json + instance/<frame>_colorized.png",
                 "bbox_2d": "bbox_2d/<frame>.json",
+                "pointcloud": "pointcloud/<frame>.ply",
+
             },
         }
 
