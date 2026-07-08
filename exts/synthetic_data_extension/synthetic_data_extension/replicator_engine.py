@@ -10,7 +10,7 @@ def create_camera_and_render_product(resolution):
 
 def build_ground_and_lighting():
     # Create a ground plane
-    ground = rep.create.plane(scale=(30, 30, 1), position=(0, 0, 0))
+    ground = rep.create.plane(scale=(300, 300, 1), position=(0, 0, 0))
     
     # Create a directional light
     light = rep.create.light(rotation=(315,0,0), intensity=8000, light_type="distant")
@@ -74,8 +74,8 @@ def _randomize_transform(list_of_prims):
         with prim:
             rep.modify.pose(
                 position=rep.distribution.uniform(
-                    (-8, -8, 0.1),
-                    (8, 8, 0.1)),                                                    
+                    (-250, -250, 0.1),
+                    (250, 250, 0.1)),                                                    
                 rotation=rep.distribution.uniform(
                     (0, 0, 0),
                     (0, 0, 360)
